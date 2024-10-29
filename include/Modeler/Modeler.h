@@ -8,7 +8,7 @@
 #include "Modeler/SFMTranscriptInterface_Delaunay.h"
 #include "Modeler/ModelDrawer.h"
 #include "Modeler/TextureFrame.h"
-
+#include "Map.h"
 #include "Thirdparty/EDLines/LS.h"
 
 namespace ORB_SLAM2 {
@@ -19,8 +19,8 @@ namespace ORB_SLAM2 {
     class KeyFrame;
     class Frame;
     class ModelDrawer;
-
     class LinePoint;
+    class Map;
 
     class LineSegment {
     public:
@@ -116,7 +116,7 @@ namespace ORB_SLAM2 {
         void SetLocalMapper(LocalMapping* pLocalMapper);
 
         void SetTracker(Tracking* pTracker);
-
+        // void SetMap(Map* pMap);
         // Main function
         void Run();
 
@@ -148,6 +148,7 @@ namespace ORB_SLAM2 {
 
         // get last n keyframes for texturing
         std::vector<pair<cv::Mat,TextureFrame>> GetTextures(int n);
+        std::vector<std::pair<cv::Mat, TextureFrame>> GetAllTextures(std::vector<KeyFrame*> allKeyFrames);
 
         // get last detected lines and cooresponding image
         cv::Mat GetImageWithLines();
@@ -170,6 +171,7 @@ namespace ORB_SLAM2 {
         LoopClosing* mpLoopCloser;
 
         ModelDrawer* mpModelDrawer;
+        // Map* mpMap;
 
         // This avoid that two transcript entries are created simultaneously in separate threads
         std::mutex mMutexTranscript;

@@ -27,9 +27,9 @@ namespace ORB_SLAM2
 {
 
     Viewer::Viewer(System* pSystem, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer,  ModelDrawer* pModelDrawer,
-                   Tracking *pTracking, const string &strSettingPath):
+                   Tracking *pTracking,Map *pMap ,const string &strSettingPath):
             mpSystem(pSystem), mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpModelDrawer(pModelDrawer),
-            mpTracker(pTracking), mbFinishRequested(false), mbFinished(true), mbStopped(true), mbStopRequested(false)
+            mpTracker(pTracking),mpMap(pMap), mbFinishRequested(false), mbFinished(true), mbStopped(true), mbStopRequested(false)
     {
         cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
 
@@ -121,7 +121,7 @@ namespace ORB_SLAM2
         pangolin::OpenGlMatrix projectionCamera = pangolin::ProjectionMatrix(mImageWidth,mImageHeight,mfx,mfy,mcx,mcy,0.1,1000);
         pangolin::OpenGlMatrix viewAbove = pangolin::ModelViewLookAt(mViewpointX,mViewpointY,mViewpointZ, 0,0,0,0.0,-1.0, 0.0);
         pangolin::OpenGlMatrix viewCamera = pangolin::ModelViewLookAt(0,0,0, 0,0,1, 0.0,-1.0, 0.0);
-
+        
         while(1)
         {
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -181,14 +181,21 @@ namespace ORB_SLAM2
 
             CheckGlDieOnError()
             // carv: show model or triangle with light from camera
+            
             if(menuShowModel && menuShowTexture) {
-                mpModelDrawer->DrawModel(mbRGB);
+                std::vector<KeyFrame*> allKeyFrames = mpMap->GetAllKeyFrames();
+                // std::cout<< "size of allKeyFrames: " << allKeyFrames.size() << std::endl;
+                std::vector<pair<cv::Mat,TextureFrame>> imAndTexFrame = mpSystem->mpModeler->GetAllTextures(allKeyFrames);
+                mpModelDrawer->DrawModel(mbRGB, imAndTexFrame);
             }
             else if (menuShowModel && !menuShowTexture) {
                 mpModelDrawer->DrawTriangles(MapTwc);
             }
             else if (!menuShowModel && menuShowTexture) {
-                mpModelDrawer->DrawFrame(mbRGB);
+                std::vector<KeyFrame*> allKeyFrames = mpMap->GetAllKeyFrames();
+                // std::cout<< "size of allKeyFrames: " << allKeyFrames.size() << std::endl;
+                std::vector<pair<cv::Mat,TextureFrame>> imAndTexFrame = mpSystem->mpModeler->GetAllTextures(allKeyFrames);
+                mpModelDrawer->DrawFrame(mbRGB,imAndTexFrame);
             }
             if(menuSaveCARV)
             {

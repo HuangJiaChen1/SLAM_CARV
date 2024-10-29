@@ -44,7 +44,7 @@ namespace ORB_SLAM2 {
         Map();
 
         void AddKeyFrame(KeyFrame *pKF);
-
+        void ShowKeyFrames();
         void AddMapPoint(MapPoint* pMP);
 
         void EraseMapPoint(MapPoint *pMP);
@@ -86,7 +86,7 @@ namespace ORB_SLAM2 {
             mpModeler = pModeler;
         }
         KeyFrame * newestKeyFrame;
-    protected:
+    public:
 
 
         std::set<MapPoint *> mspMapPoints;

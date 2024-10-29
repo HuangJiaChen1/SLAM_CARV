@@ -3,7 +3,7 @@
 //
 
 #include "Modeler/Modeler.h"
-
+#include "Tracking.h"
 #include <ctime>
 
 #include <chrono>
@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include<iostream>
 #include <include/Modeler/Modeler.h>
 
 /// Function prototype for DetectEdgesByED exported by EDLinesLib.a
@@ -21,7 +22,7 @@ namespace ORB_SLAM2 {
 
     Modeler::Modeler(ModelDrawer* pModelDrawer):
             mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpModelDrawer(pModelDrawer),
-            mnLastNumLines(2), mbFirstKeyFrame(true), mnMaxTextureQueueSize(10), mnMaxFrameQueueSize(5000),
+            mnLastNumLines(2), mbFirstKeyFrame(true), mnMaxTextureQueueSize(20), mnMaxFrameQueueSize(5000),
             mnMaxToLinesQueueSize(500)
     {
         mAlgInterface.setAlgorithmRef(&mObjAlgorithm);
@@ -47,6 +48,10 @@ namespace ORB_SLAM2 {
     {
         mpLoopCloser = pLoopCloser;
     }
+
+    // void Modeler::SetMap(Map* pMap){
+    //     mpMap = pMap;
+    // }
 
     void Modeler::Run()
     {
@@ -1514,7 +1519,7 @@ namespace ORB_SLAM2 {
     }
 
 
-    // get last n keyframes for texturing
+    // // get last n keyframes for texturing
     std::vector<pair<cv::Mat,TextureFrame>> Modeler::GetTextures(int n)
     {
         unique_lock<mutex> lock(mMutexTexture);
@@ -1529,6 +1534,38 @@ namespace ORB_SLAM2 {
 
         return imAndTexFrame;
     }
+
+    std::vector<pair<cv::Mat,TextureFrame>> Modeler::GetAllTextures(std::vector<KeyFrame*> allKeyFrames)
+    {
+        unique_lock<mutex> lock(mMutexTexture);
+        unique_lock<mutex> lock2(mMutexFrame);
+        std::vector<pair<cv::Mat,TextureFrame>> imAndTexFrame;
+        std::cout<< "size of allKeyFrames: " << allKeyFrames.size() << std::endl;
+        for (KeyFrame* pKF : allKeyFrames) {
+            if (mmFrameQueue.count(pKF->mnFrameId)) {
+                imAndTexFrame.push_back(make_pair(mmFrameQueue[pKF->mnFrameId], TextureFrame(pKF)));
+            }
+        }
+        return imAndTexFrame;
+    }
+
+
+    // // unable to retrieve kf from Map.cc
+    // std::vector<pair<cv::Mat, TextureFrame>> Modeler::GetAllTextures()
+    // {
+    //     unique_lock<mutex> lock(mMutexTexture);
+    //     unique_lock<mutex> lock2(mMutexFrame);
+    //     std::vector<pair<cv::Mat, TextureFrame>> imAndTexFrame;
+    //     std::vector<KeyFrame*> allKeyFrames = mpTracker->GetAllKFs();
+    //     std::cout<< "size of allKeyFrames: " << allKeyFrames.size() << std::endl;
+    //     // Process keyframes...
+    //     for (KeyFrame* pKF : allKeyFrames) {
+    //         if (mmFrameQueue.count(pKF->mnFrameId)) {
+    //             imAndTexFrame.push_back(make_pair(mmFrameQueue[pKF->mnFrameId], TextureFrame(pKF)));
+    //         }
+    //     }
+    //     return imAndTexFrame;
+    // }
 
     cv::Mat Modeler::GetImageWithLines()
     {

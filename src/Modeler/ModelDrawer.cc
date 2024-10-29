@@ -3,119 +3,240 @@
 //
 
 #include "Modeler/ModelDrawer.h"
+#include<iostream>
+#include <GL/gl.h>       // Core OpenGL functions
+#include <GL/glu.h>      // OpenGL utility functions (optional, based on usage)
+
 
 namespace ORB_SLAM2
 {
     ModelDrawer::ModelDrawer():mbModelUpdateRequested(false), mbModelUpdateDone(true)
-    {
+    {   
+        // initialize_empty_texture_map(3000,3000);
     }
+    void ModelDrawer::DrawModel(bool bRGB, vector<pair<cv::Mat, TextureFrame>> imAndTexFrame) {
+        if (imAndTexFrame.empty()) return;
 
-    void ModelDrawer::DrawModel(bool bRGB)
-    {
-        // select 4 KFs
-        int numKFs = 1;
-        vector<pair<cv::Mat,TextureFrame>> imAndTexFrame = mpModeler->GetTextures(numKFs);
+        int numKFs = imAndTexFrame.size();
+        vector<unsigned int> frameTex(numKFs, 0);
+        
+        glGenTextures(numKFs, frameTex.data());
+        for (size_t i = 0; i < numKFs; i++) {
+            cv::Size imSize = imAndTexFrame[i].first.size();
+            glBindTexture(GL_TEXTURE_2D, frameTex[i]);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 
-        if (imAndTexFrame.size() >= numKFs) {
-//            static unsigned int frameTex[4] = {0, 0, 0, 0};
-            static unsigned int frameTex[1] = {0};
-            if (!frameTex[0])
-                glGenTextures(numKFs, frameTex);
-
-            cv::Size imSize = imAndTexFrame[0].first.size();
-
-            for (int i = 0; i < numKFs; i++) {
-                glBindTexture(GL_TEXTURE_2D, frameTex[i]);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-                // image are saved in RGB format, grayscale images are converted
-                if (bRGB) {
-                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-                                 imSize.width, imSize.height, 0,
-                                 GL_BGR,
-                                 GL_UNSIGNED_BYTE,
-                                 imAndTexFrame[i].first.data);
-                } else {
-                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-                                 imSize.width, imSize.height, 0,
-                                 GL_RGB,
-                                 GL_UNSIGNED_BYTE,
-                                 imAndTexFrame[i].first.data);
-                }
+            if (bRGB) {
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+                            imSize.width, imSize.height, 0,
+                            GL_BGR, GL_UNSIGNED_BYTE,
+                            imAndTexFrame[i].first.data);
+            } else {
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+                            imSize.width, imSize.height, 0,
+                            GL_RGB, GL_UNSIGNED_BYTE,
+                            imAndTexFrame[i].first.data);
             }
+        }
 
-            UpdateModel();
+        UpdateModel();
 
-            glEnable(GL_TEXTURE_2D);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glEnable(GL_TEXTURE_2D);
 
-            glBegin(GL_TRIANGLES);
-            glColor3f(1.0,1.0,1.0);
+        const auto& tris = GetTris();
+        vector<vector<pair<int, vector<float>>>> triangleTextures;  
+        for (auto triIt = tris.begin(); triIt != tris.end(); ++triIt) {
+            const auto& triangle = *triIt;
+            vector<pair<int, vector<float>>> visibleTextures;
 
-            for (list<dlovi::Matrix>::const_iterator it = GetTris().begin(); it != GetTris().end(); it++) {
+            dlovi::Matrix point0 = GetPoints()[triangle(0)];
+            dlovi::Matrix point1 = GetPoints()[triangle(1)];
+            dlovi::Matrix point2 = GetPoints()[triangle(2)];
 
-                dlovi::Matrix point0 = GetPoints()[(*it)(0)];
-                dlovi::Matrix point1 = GetPoints()[(*it)(1)];
-                dlovi::Matrix point2 = GetPoints()[(*it)(2)];
+            dlovi::Matrix edge10 = point1 - point0;
+            dlovi::Matrix edge20 = point2 - point0;
+            dlovi::Matrix normal = edge20.cross(edge10);
+            normal = normal / normal.norm();
 
-                dlovi::Matrix edge10 = point1 - point0;
-                dlovi::Matrix edge20 = point2 - point0;
+            for (int frameIdx = 0; frameIdx < numKFs; frameIdx++) {
+                cv::Mat texOrient = imAndTexFrame[frameIdx].second.GetOrientation();
+                dlovi::Matrix orientation(3,1);
+                orientation(0) = texOrient.at<float>(0);
+                orientation(1) = texOrient.at<float>(1);
+                orientation(2) = texOrient.at<float>(2);
 
-                dlovi::Matrix normal = edge20.cross(edge10);
-                normal = normal / normal.norm();
-
-                glNormal3d(normal(0), normal(1), normal(2));
-
-                vector<double> dotProducts;
-                vector<int> indexTex;
-                for (int i = 0; i < numKFs; i++){
-                    cv::Mat texOrient = imAndTexFrame[i].second.GetOrientation();
-                    dlovi::Matrix orientation(3,1);
-                    orientation(0) = texOrient.at<float>(0);
-                    orientation(1) = texOrient.at<float>(1);
-                    orientation(2) = texOrient.at<float>(2);
-
-                    dotProducts.push_back(normal.dot(orientation));
-                    indexTex.push_back(i);
-                }
-
-                sort( begin(indexTex), end(indexTex),
-                      [&](int i1, int i2) { return dotProducts[i1] > dotProducts[i2]; } );
-
-                for (int i = 0; i < numKFs; i++){
-                    int indexCurr = indexTex[i];
-
-                    TextureFrame tex = imAndTexFrame[indexCurr].second;
-                    vector<float> uv0 = tex.GetTexCoordinate(point0(0),point0(1),point0(2),imSize);
-                    vector<float> uv1 = tex.GetTexCoordinate(point1(0),point1(1),point1(2),imSize);
-                    vector<float> uv2 = tex.GetTexCoordinate(point2(0),point2(1),point2(2),imSize);
+                double dotProduct = normal.dot(orientation);
+                
+                if (dotProduct > 0) {
+                    TextureFrame tex = imAndTexFrame[frameIdx].second;
+                    cv::Size imSize = imAndTexFrame[frameIdx].first.size();
+                    
+                    vector<float> uv0 = tex.GetTexCoordinate(point0(0), point0(1), point0(2), imSize);
+                    vector<float> uv1 = tex.GetTexCoordinate(point1(0), point1(1), point1(2), imSize);
+                    vector<float> uv2 = tex.GetTexCoordinate(point2(0), point2(1), point2(2), imSize);
 
                     if (uv0.size() == 2 && uv1.size() == 2 && uv2.size() == 2) {
-
-                        // TODO: not the right way to do multi-texturing
-//                        glDisable(GL_TEXTURE_2D);
-//                        glEnable(GL_TEXTURE_2D);
-//                        glBindTexture(GL_TEXTURE_2D, frameTex[indexCurr]);
-
-                        glTexCoord2f(uv0[0], uv0[1]);
-                        glVertex3d(point0(0), point0(1), point0(2));
-
-                        glTexCoord2f(uv1[0], uv1[1]);
-                        glVertex3d(point1(0), point1(1), point1(2));
-
-                        glTexCoord2f(uv2[0], uv2[1]);
-                        glVertex3d(point2(0), point2(1), point2(2));
-
-                        break;
+                        vector<float> uvCoords;
+                        uvCoords.insert(uvCoords.end(), uv0.begin(), uv0.end());
+                        uvCoords.insert(uvCoords.end(), uv1.begin(), uv1.end());
+                        uvCoords.insert(uvCoords.end(), uv2.begin(), uv2.end());
+                        visibleTextures.push_back({frameIdx, uvCoords});
                     }
                 }
             }
-            glEnd();
-
-            glDisable(GL_TEXTURE_2D);
+            triangleTextures.push_back(visibleTextures);
         }
+
+        auto triIt = tris.begin();
+        for (size_t i = 0; i < triangleTextures.size(); ++i, ++triIt) {
+            const auto& triangle = *triIt;
+            const auto& textures = triangleTextures[i];
+            
+            if (textures.empty()) continue;
+
+            dlovi::Matrix point0 = GetPoints()[triangle(0)];
+            dlovi::Matrix point1 = GetPoints()[triangle(1)];
+            dlovi::Matrix point2 = GetPoints()[triangle(2)];
+            dlovi::Matrix edge10 = point1 - point0;
+            dlovi::Matrix edge20 = point2 - point0;
+            dlovi::Matrix normal = edge20.cross(edge10);
+            normal = normal / normal.norm();
+
+            float alpha = 1.0f;
+
+            for (const auto& tex : textures) {
+                int frameIdx = tex.first;
+                const vector<float>& uvCoords = tex.second;
+
+                glBindTexture(GL_TEXTURE_2D, frameTex[frameIdx]);
+                
+                glBegin(GL_TRIANGLES);
+                glColor4f(1.0, 1.0, 1.0, alpha);
+                glNormal3d(normal(0), normal(1), normal(2));
+
+                glTexCoord2f(uvCoords[0], uvCoords[1]);
+                glVertex3d(point0(0), point0(1), point0(2));
+
+                glTexCoord2f(uvCoords[2], uvCoords[3]);
+                glVertex3d(point1(0), point1(1), point1(2));
+
+                glTexCoord2f(uvCoords[4], uvCoords[5]);
+                glVertex3d(point2(0), point2(1), point2(2));
+                glEnd();
+            }
+        }
+
+        glDisable(GL_BLEND);
+        glDisable(GL_TEXTURE_2D);
     }
+
+//     void ModelDrawer::DrawModel(bool bRGB, vector<pair<cv::Mat,TextureFrame>> imAndTexFrame)
+//     {
+//         int numKFs = 1;
+//         if (imAndTexFrame.size() >= numKFs) {
+//             static unsigned int frameTex[1] = {0};
+//             if (!frameTex[0])
+//                 glGenTextures(numKFs, frameTex);
+
+//             cv::Size imSize = imAndTexFrame[0].first.size();
+
+//             for (int i = 0; i < numKFs; i++) {
+//                 glBindTexture(GL_TEXTURE_2D, frameTex[i]);
+//                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+//                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+//                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+//                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+//                 // image are saved in RGB format, grayscale images are converted
+//                 if (bRGB) {
+//                     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+//                                  imSize.width, imSize.height, 0,
+//                                  GL_BGR,
+//                                  GL_UNSIGNED_BYTE,
+//                                  imAndTexFrame[i].first.data);
+//                 } else {
+//                     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+//                                  imSize.width, imSize.height, 0,
+//                                  GL_RGB,
+//                                  GL_UNSIGNED_BYTE,
+//                                  imAndTexFrame[i].first.data);
+//                 }
+//             }
+
+//             UpdateModel();
+
+//             glEnable(GL_TEXTURE_2D);
+
+//             glBegin(GL_TRIANGLES);
+//             glColor3f(1.0,1.0,1.0);
+
+//             for (list<dlovi::Matrix>::const_iterator it = GetTris().begin(); it != GetTris().end(); it++) {
+
+//                 dlovi::Matrix point0 = GetPoints()[(*it)(0)];
+//                 dlovi::Matrix point1 = GetPoints()[(*it)(1)];
+//                 dlovi::Matrix point2 = GetPoints()[(*it)(2)];
+
+//                 dlovi::Matrix edge10 = point1 - point0;
+//                 dlovi::Matrix edge20 = point2 - point0;
+
+//                 dlovi::Matrix normal = edge20.cross(edge10);
+//                 normal = normal / normal.norm();
+
+//                 glNormal3d(normal(0), normal(1), normal(2));
+
+//                 vector<double> dotProducts;
+//                 vector<int> indexTex;
+//                 for (int i = 0; i < numKFs; i++){
+//                     cv::Mat texOrient = imAndTexFrame[i].second.GetOrientation();
+//                     dlovi::Matrix orientation(3,1);
+//                     orientation(0) = texOrient.at<float>(0);
+//                     orientation(1) = texOrient.at<float>(1);
+//                     orientation(2) = texOrient.at<float>(2);
+
+//                     dotProducts.push_back(normal.dot(orientation));
+//                     indexTex.push_back(i);
+//                 }
+
+//                 sort( begin(indexTex), end(indexTex),
+//                       [&](int i1, int i2) { return dotProducts[i1] > dotProducts[i2]; } );
+
+//                 for (int i = 0; i < numKFs; i++){
+//                     int indexCurr = indexTex[i];
+
+//                     TextureFrame tex = imAndTexFrame[indexCurr].second;
+//                     vector<float> uv0 = tex.GetTexCoordinate(point0(0),point0(1),point0(2),imSize);
+//                     vector<float> uv1 = tex.GetTexCoordinate(point1(0),point1(1),point1(2),imSize);
+//                     vector<float> uv2 = tex.GetTexCoordinate(point2(0),point2(1),point2(2),imSize);
+
+//                     if (uv0.size() == 2 && uv1.size() == 2 && uv2.size() == 2) {
+
+//                         // TODO: not the right way to do multi-texturing
+// //                        glDisable(GL_TEXTURE_2D);
+// //                        glEnable(GL_TEXTURE_2D);
+// //                        glBindTexture(GL_TEXTURE_2D, frameTex[indexCurr]);
+
+//                         glTexCoord2f(uv0[0], uv0[1]);
+//                         glVertex3d(point0(0), point0(1), point0(2));
+
+//                         glTexCoord2f(uv1[0], uv1[1]);
+//                         glVertex3d(point1(0), point1(1), point1(2));
+
+//                         glTexCoord2f(uv2[0], uv2[1]);
+//                         glVertex3d(point2(0), point2(1), point2(2));
+
+//                         break;
+//                     }
+//                 }
+//             }
+//             glEnd();
+
+//             glDisable(GL_TEXTURE_2D);
+//         }
+//     }
 
     void ModelDrawer::DrawModelPoints()
     {
@@ -183,33 +304,69 @@ namespace ORB_SLAM2
 
     }
 
-    void ModelDrawer::DrawFrame(bool bRGB)
+    // void ModelDrawer::DrawFrame(bool bRGB)
+    // {
+    //     // select the last frame
+    //     int numKFs = 1;
+    //     vector<pair<cv::Mat,TextureFrame>> imAndTexFrame = mpModeler->GetTextures(numKFs);
+
+    //     if (imAndTexFrame.size() >= numKFs) {
+    //         glColor3f(1.0,1.0,1.0);
+
+    //         if (imAndTexFrame[0].first.empty()){
+    //             std::cerr << "ERROR: empty frame image" << endl;
+    //             return;
+    //         }
+    //         cv::Size imSize = imAndTexFrame[0].first.size();
+
+    //         if(bRGB) {
+    //             pangolin::GlTexture imageTexture(imSize.width, imSize.height, GL_RGB, false, 0, GL_BGR,
+    //                                              GL_UNSIGNED_BYTE);
+    //             imageTexture.Upload(imAndTexFrame[0].first.data, GL_BGR, GL_UNSIGNED_BYTE);
+    //             imageTexture.RenderToViewportFlipY();
+    //         } else {
+    //             pangolin::GlTexture imageTexture(imSize.width, imSize.height, GL_RGB, false, 0, GL_RGB,
+    //                                              GL_UNSIGNED_BYTE);
+    //             imageTexture.Upload(imAndTexFrame[0].first.data, GL_RGB, GL_UNSIGNED_BYTE);
+    //             imageTexture.RenderToViewportFlipY();
+    //         }
+
+    //     }
+    // }
+    void ModelDrawer::DrawFrame(bool bRGB, vector<pair<cv::Mat,TextureFrame>> imAndTexFrame)
     {
-        // select the last frame
-        int numKFs = 1;
-        vector<pair<cv::Mat,TextureFrame>> imAndTexFrame = mpModeler->GetTextures(numKFs);
+        // Get the textures from the Modeler
+        int numKFs = imAndTexFrame.size();
 
-        if (imAndTexFrame.size() >= numKFs) {
-            glColor3f(1.0,1.0,1.0);
+        // Set up the grid layout parameters
+        const int cols = 2; // Number of columns for the grid
+        const int rows = (numKFs + cols - 1) / cols; // Calculate number of rows
+        const int textureWidth = 512; // Desired width for each texture
+        const int textureHeight = 512; // Desired height for each texture
 
-            if (imAndTexFrame[0].first.empty()){
-                std::cerr << "ERROR: empty frame image" << endl;
-                return;
-            }
-            cv::Size imSize = imAndTexFrame[0].first.size();
+        for (int i = 0; i < numKFs; ++i) {
+            // Get the size of the current texture
+            cv::Size imSize = imAndTexFrame[i].first.size();
 
-            if(bRGB) {
-                pangolin::GlTexture imageTexture(imSize.width, imSize.height, GL_RGB, false, 0, GL_BGR,
-                                                 GL_UNSIGNED_BYTE);
-                imageTexture.Upload(imAndTexFrame[0].first.data, GL_BGR, GL_UNSIGNED_BYTE);
-                imageTexture.RenderToViewportFlipY();
-            } else {
-                pangolin::GlTexture imageTexture(imSize.width, imSize.height, GL_RGB, false, 0, GL_RGB,
-                                                 GL_UNSIGNED_BYTE);
-                imageTexture.Upload(imAndTexFrame[0].first.data, GL_RGB, GL_UNSIGNED_BYTE);
-                imageTexture.RenderToViewportFlipY();
-            }
+            // Create a texture object
+            pangolin::GlTexture imageTexture(imSize.width, imSize.height, GL_RGB, false, 0, bRGB ? GL_BGR : GL_RGB, GL_UNSIGNED_BYTE);
 
+            // Upload the texture data
+            imageTexture.Upload(imAndTexFrame[i].first.data, bRGB ? GL_BGR : GL_RGB, GL_UNSIGNED_BYTE);
+
+            // Calculate the position for the current texture
+            int xPos = (i % cols) * textureWidth; // X position in grid
+            int yPos = (i / cols) * textureHeight; // Y position in grid
+
+            // Set up the viewport to render the texture
+            pangolin::View& viewport = pangolin::CreateDisplay()
+                .SetBounds(yPos / (float)(rows * textureHeight), (yPos + textureHeight) / (float)(rows * textureHeight), 
+                        xPos / (float)(cols * textureWidth), (xPos + textureWidth) / (float)(cols * textureWidth));
+            
+            viewport.Activate();
+
+            // Render the texture
+            imageTexture.RenderToViewportFlipY();
         }
     }
 

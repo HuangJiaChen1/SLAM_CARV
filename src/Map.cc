@@ -43,6 +43,34 @@ void Map::AddKeyFrame(KeyFrame *pKF)
     //std::cout<<newestKeyFrame->GetPoseInverse()<<std::endl;
 }
 
+void Map::ShowKeyFrames()
+{
+    // Lock mutex to ensure thread safety
+    unique_lock<mutex> lock(mMutexMap);
+
+    for (auto keyFrame : mspKeyFrames)
+    {
+        // Retrieve pose or any data you want to visualize
+        cv::Mat pose = keyFrame->GetPoseInverse();  // Assuming this returns a matrix representation of the pose
+
+        // Create an image to draw the pose
+        cv::Mat display = cv::Mat::zeros(400, 400, CV_8UC3);  // Example display size; adjust as needed
+
+        // Visualize the pose on display
+        // Add your drawing/rendering code here
+        // For instance, you could draw arrows indicating orientation
+        // or project the points to simulate the 3D view on a 2D plane
+
+        // Display each keyframe
+        std::string windowName = "KeyFrame " + std::to_string(keyFrame->mnId);
+        cv::imshow(windowName, display);
+        cv::waitKey(0);  // Wait for a key press before moving to the next keyframe
+
+        // Optional: Close the previous window
+        cv::destroyWindow(windowName);
+    }
+}
+
 // KeyFrame * Map::GetNewestKeyFrame()
 // {
 //   //unique_lock<mutex> lock(mMutexMap);

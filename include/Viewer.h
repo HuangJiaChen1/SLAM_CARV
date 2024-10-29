@@ -42,13 +42,13 @@ namespace ORB_SLAM2
 
     // carv class declaration
     class ModelDrawer;
-
+    class Map;
     class Viewer
     {
     public:
         // carv initialize with modeldrawer
         Viewer(System* pSystem, FrameDrawer* pFrameDrawer, MapDrawer* pMapDrawer, ModelDrawer* pModelDrawer,
-               Tracking *pTracking, const string &strSettingPath);
+               Tracking *pTracking, Map*pMap, const string &strSettingPath);
 
         // Main thread function. Draw points, keyframes, the current camera pose and the last processed
         // frame. Drawing is refreshed according to the camera fps. We use Pangolin.
@@ -76,7 +76,7 @@ namespace ORB_SLAM2
         ModelDrawer* mpModelDrawer;
 
         Tracking* mpTracker;
-
+        Map* mpMap;
         // 1/fps in ms
         double mT;
         float mImageWidth, mImageHeight;

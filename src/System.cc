@@ -113,7 +113,7 @@ namespace ORB_SLAM2
         //Initialize the Viewer thread and launch
         if(bUseViewer)
         {
-            mpViewer = new Viewer(this, mpFrameDrawer,mpMapDrawer,mpModelDrawer,mpTracker,strSettingsFile);
+            mpViewer = new Viewer(this, mpFrameDrawer,mpMapDrawer,mpModelDrawer,mpTracker,mpMap, strSettingsFile);
             mptViewer = new thread(&Viewer::Run, mpViewer);
             mpTracker->SetViewer(mpViewer);
         }
@@ -134,6 +134,7 @@ namespace ORB_SLAM2
         mpLocalMapper->SetModeler(mpModeler);
         mpModelDrawer->SetModeler(mpModeler);
 
+        // mpModeler->SetMap(mpMap);
     }
 
     cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timestamp)
