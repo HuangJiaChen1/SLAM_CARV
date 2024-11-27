@@ -30,6 +30,9 @@ namespace ORB_SLAM2
         // void initialize_empty_texture_map(int width,int height);
         void DrawModel(bool bRGB, vector<pair<cv::Mat,TextureFrame>> imAndTexFrame);
         void DrawModelPoints();
+        void SaveModelToObj(const std::vector<dlovi::Matrix>& points, 
+                                const std::list<dlovi::Matrix>& triangles, 
+                                const std::string& filename);
         void DrawTriangles(pangolin::OpenGlMatrix &Twc);
         void DrawFrame(bool bRGB, vector<pair<cv::Mat,TextureFrame>> imAndTexFrame);
         cv::Mat DrawLines();

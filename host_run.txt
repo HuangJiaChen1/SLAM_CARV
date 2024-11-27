@@ -23,3 +23,7 @@ rosrun image_transport republish compressed in:=/camera/image_raw out:=/camera/c
 
 # running CARV with Flir camera on robot
 rosrun ORB_CARV_Pub Mono Vocabulary/ORBvoc.txt config_files/Logitech_c270_HD720p.yaml /camera/image_raw:=/usb_cam/image_raw
+
+# extract files from docker to host
+docker cp <container_id>:/root/orbslam3/SLAM_CARV/output_model.obj ~/Downloads
+

@@ -89,6 +89,8 @@ namespace ORB_SLAM2
         pangolin::Var<bool> menuSaveCARV("menu.Save CARV",false,true);
         pangolin::Var<bool> menuReset("menu.Reset",false,false);
         pangolin::Var<bool> menuLocalizationMode("menu.Localization Mode",false,true);
+        pangolin::Var<bool> menuSaveObj("menu.Save Model to OBJ", false, true);
+
         // Define Camera Render Object (for view / scene browsing)
         pangolin::OpenGlRenderState s_map(
 //                pangolin::ProjectionMatrix(1024,768,mViewpointF,mViewpointF,512,389,0.1,1000),
@@ -202,6 +204,20 @@ namespace ORB_SLAM2
               mpSystem->mpModeler->writeToFile("chris_CARV_Files");
               menuSaveCARV = false;
             }
+            if (menuSaveObj) {
+                std::cout << "Saving model to OBJ file..." << std::endl;
+
+                // Call the function to save the model to a .obj file
+                std::vector<dlovi::Matrix> points = mpModelDrawer->GetPoints();
+                std::list<dlovi::Matrix> triangles = mpModelDrawer->GetTris();
+                mpModelDrawer->SaveModelToObj(points, triangles, "output_model.obj");
+
+                std::cout << "Model saved to output_model.obj" << std::endl;
+
+                // Reset the button state
+                menuSaveObj = false;
+            }
+
             CheckGlDieOnError()
 
             pangolin::FinishFrame();

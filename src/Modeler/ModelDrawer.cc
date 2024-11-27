@@ -3,7 +3,10 @@
 //
 
 #include "Modeler/ModelDrawer.h"
-#include<iostream>
+#include <fstream>
+#include <vector>
+#include <iostream>
+#include <list>
 #include <GL/gl.h>       // Core OpenGL functions
 #include <GL/glu.h>      // OpenGL utility functions (optional, based on usage)
 
@@ -134,6 +137,34 @@ namespace ORB_SLAM2
         glDisable(GL_BLEND);
         glDisable(GL_TEXTURE_2D);
     }
+
+    void ModelDrawer::SaveModelToObj(const std::vector<dlovi::Matrix>& points, 
+                                const std::list<dlovi::Matrix>& triangles, 
+                                const std::string& filename) 
+    {
+        std::ofstream file(filename);
+        if (!file.is_open()) {
+            std::cerr << "Error: Could not open file " << filename << " for writing." << std::endl;
+            return;
+        }
+
+        // Write vertices
+        for (const auto& point : points) {
+            file << "v " << point(0) << " " << point(1) << " " << point(2) << "\n";
+        }
+
+        // Write faces (triangles)
+        for (const auto& tri : triangles) {
+            file << "f " 
+                << static_cast<int>(tri(0) + 1) << " "
+                << static_cast<int>(tri(1) + 1) << " "
+                << static_cast<int>(tri(2) + 1) << "\n";
+        }
+
+        file.close();
+        std::cout << "Model saved to " << filename << std::endl;
+    }
+
 
 //     void ModelDrawer::DrawModel(bool bRGB, vector<pair<cv::Mat,TextureFrame>> imAndTexFrame)
 //     {
